@@ -19,56 +19,56 @@ if con:
 
 # # -- Task 2.1 --
 
-# users['created_at'] = pd.to_datetime(users['created_at'])
+users['created_at'] = pd.to_datetime(users['created_at'])
 
-# # Extract year-month as period
-# users['month'] = users['created_at'].dt.to_period('M')
+# Extract year-month as period
+users['month'] = users['created_at'].dt.to_period('M')
 
-# # Count how many users in each month
-# users_counts_per_month = users.groupby('month').size()
+# Count how many users in each month
+users_counts_per_month = users.groupby('month').size()
 
-# # Build full monthly range from min to max
-# all_months = pd.period_range(users['month'].min(), users['month'].max(), freq='M')
+# Build full monthly range from min to max
+all_months = pd.period_range(users['month'].min(), users['month'].max(), freq='M')
 
-# # Reindex to include missing months, fill with 0
-# users_counts_per_month = users_counts_per_month.reindex(all_months, fill_value=0)
+# Reindex to include missing months, fill with 0
+users_counts_per_month = users_counts_per_month.reindex(all_months, fill_value=0)
 
-# # Convert to DataFrame
-# monthly_users_counts = users_counts_per_month.reset_index()
-# monthly_users_counts.columns = ['month', 'monthly_users']
+# Convert to DataFrame
+monthly_users_counts = users_counts_per_month.reset_index()
+monthly_users_counts.columns = ['month', 'monthly_users']
 
-# # Add cumulative sum
-# monthly_users_counts['cumulative_users'] = monthly_users_counts['monthly_users'].cumsum()
+# Add cumulative sum
+monthly_users_counts['cumulative_users'] = monthly_users_counts['monthly_users'].cumsum()
 
 
 
-# print("Monthly and Cumulative users")
-# print(monthly_users_counts)
+print("Monthly and Cumulative users")
+print(monthly_users_counts)
 
-# # Plot
-# plt.plot(monthly_users_counts['month'].astype(str), monthly_users_counts['cumulative_users'])
-# plt.title("Cumulative Users On The DataBase Over Time")
-# plt.xlabel("Month")
-# plt.ylabel("Total Cumulative Users")
-# plt.xticks(rotation=45)
-# plt.grid(True)
-# plt.show()
+# Plot
+plt.plot(monthly_users_counts['month'].astype(str), monthly_users_counts['cumulative_users'])
+plt.title("Cumulative Users On The DataBase Over Time")
+plt.xlabel("Month")
+plt.ylabel("Total Cumulative Users")
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.show()
 
-# # Naive users growth estimate
-# current_users = monthly_users_counts['cumulative_users'].iloc[-1]
-# n_months = len(monthly_users_counts)
-# avg_growth = current_users / n_months
-# predicted_total_3_years = current_users + avg_growth * 36
-# usage_per_server = current_users/16
-# prediction_plus_20_percent = (predicted_total_3_years / usage_per_server) * 1.2
+# Naive users growth estimate
+current_users = monthly_users_counts['cumulative_users'].iloc[-1]
+n_months = len(monthly_users_counts)
+avg_growth = current_users / n_months
+predicted_total_3_years = current_users + avg_growth * 36
+usage_per_server = current_users/16
+prediction_plus_20_percent = (predicted_total_3_years / usage_per_server) * 1.2
 
-# print(
-#     f"\nPrediction: There is {avg_growth:.2f} users/month historical growth, "
-#     f"\nso based on that there will be approximately {predicted_total_3_years:.0f} users after 3 years"
-#     f"\nand currently there is 16 servers handling {current_users} users, {usage_per_server:.2f} users/server"
-#     f"\nso there should be {prediction_plus_20_percent:.0f} servers to handle that {predicted_total_3_years:.0f} predicted numbers of users"
-#     f"\n(including 20% capacity for redundancy)"
-# )
+print(
+    f"\nPrediction: There is {avg_growth:.2f} users/month historical growth, "
+    f"\nso based on that there will be approximately {predicted_total_3_years:.0f} users after 3 years"
+    f"\nand currently there is 16 servers handling {current_users} users, {usage_per_server:.2f} users/server"
+    f"\nso there should be {prediction_plus_20_percent:.0f} servers to handle that {predicted_total_3_years:.0f} predicted numbers of users"
+    f"\n(including 20% capacity for redundancy)"
+)
 
 # -- Task 2.2 --
 
@@ -78,8 +78,6 @@ comments["created_at"] = pd.to_datetime(comments["created_at"])
 
 # Filter comments within 2 days of post creation
 merged = comments.merge(posts, left_on="post_id", right_on="id", suffixes=("_comment", "_post"))
-# mask = (merged["created_at_comment"] >= merged["created_at_post"]) & \
-#        (merged["created_at_comment"] <= merged["created_at_post"] + pd.Timedelta(days=3))
 
 mask = (merged["created_at_comment"] <= merged["created_at_post"] + pd.Timedelta(days=3))
 filtered_comments = merged[mask]
@@ -114,6 +112,45 @@ print(ranked_posts[["post_id", "comment_count", "reaction_count", "virality_scor
 
 
 # -- Task 2.3 --
+# Convert timestamps
+posts["created_at"] = pd.to_datetime(posts["created_at"])
+comments["created_at"] = pd.to_datetime(comments["created_at"])
+
+# Filter comments that are created before post, How could this even be possible????
+merged = comments.merge(posts, left_on="post_id", right_on="id", suffixes=("_comment", "_post"))
+
+mask = (merged["created_at_comment"] >= merged["created_at_post"])
+filtered_comments = merged[mask]
+
+# Calculate time between post and comment
+filtered_comments["time_between"] = filtered_comments["created_at_comment"] - filtered_comments["created_at_post"]
+
+times = filtered_comments.groupby("post_id")["time_between"].max().reset_index(name="min/max_time")
+
+# Convert times to seconds for easier to read
+times["min/max_time"] = times["min/max_time"].dt.total_seconds()
+
+# Add H/M/S format
+times["formatted"] = times["min/max_time"].apply(
+    lambda x: f"{int(x//3600)}h {int((x%3600)//60)}m {int(x%60)}s"
+)
+
+print(merged)
+
+print(times)
+
+# Calculate average
+avg_seconds = times["min/max_time"].mean()
+
+days = int(avg_seconds // 86400)
+hours = int((avg_seconds % 86400) // 3600)
+minutes = int((avg_seconds % 3600) // 60)
+seconds = int(avg_seconds % 60)
+
+formatted_avg = f"{days}d {hours}h {minutes}m {seconds}s"
+
+print(f'Average time: {formatted_avg}')
+
 
 # -- Task 2.4 --
 
